@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "django-app.fullname" . }}-hpa
+  name: {{ .Release.Name }}-django-hpa
   labels:
-    {{- include "django-app.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}-django
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "django-app.fullname" . }}
+    name: {{ .Release.Name }}-django
   minReplicas: {{ .Values.hpa.minReplicas }}
   maxReplicas: {{ .Values.hpa.maxReplicas }}
   metrics:

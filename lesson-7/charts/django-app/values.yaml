@@ -1,5 +1,5 @@
 image:
-  repository: your-registry/your-django-image
+  repository: 683210040028.dkr.ecr.eu-central-1.amazonaws.com/goit-devops-hw-django
   tag: latest
   pullPolicy: IfNotPresent
 
