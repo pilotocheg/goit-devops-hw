@@ -27,7 +27,7 @@ module "eks" {
   source          = "./modules/eks"
   region          = "eu-central-1"
   cluster_name    = "eks-cluster-demo"            # Назва кластера
-  subnet_ids      = module.vpc.public_subnets     # ID підмереж
+  subnet_ids      = module.vpc.private_subnets     # ID підмереж
   instance_type   = "t3.micro"                    # Тип інстансів
   desired_size    = 1                             # Бажана кількість нодів
   max_size        = 2                             # Максимальна кількість нодів
