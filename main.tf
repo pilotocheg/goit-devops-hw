@@ -30,7 +30,7 @@ module "eks" {
   cluster_name    = "eks-cluster-demo"            # Назва кластера
   subnet_ids      = module.vpc.public_subnets      # ID підмереж (public, щоб ноди мали вихід в інтернет через IGW)
   instance_type   = "t3.small"                    # Тип інстансів (t3.micro дає лише 4 поди на ноду — замало для CSI + Jenkins)
-  desired_size    = 2                             # Бажана кількість нодів
+  desired_size    = 3                             # Бажана кількість нодів
   max_size        = 3                             # Максимальна кількість нодів
   min_size        = 1                             # Мінімальна кількість нодів
 }
@@ -69,6 +69,8 @@ module "jenkins" {
   oidc_provider_arn  = module.eks.oidc_provider_arn
   oidc_provider_url  = module.eks.oidc_provider_url
   ecr_repository_arn = module.ecr.ecr_repository_arn
+  github_username    = var.github_username
+  github_pat         = var.github_pat
 
   providers = {
     helm       = helm

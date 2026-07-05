@@ -34,8 +34,8 @@ controller:
                   - usernamePassword:
                       scope: GLOBAL
                       id: github-token
-                      username: pilotocheg
-                      password: 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
+                      username: ${github_username}
+                      password: "${github_pat}"
                       description: GitHub PAT
       seed-job: |
         jobs:

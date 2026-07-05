@@ -84,6 +84,8 @@ resource "helm_release" "jenkins" {
   values = [
     templatefile("${path.module}/values.yaml", {
       kaniko_role_arn = aws_iam_role.jenkins_kaniko_role.arn
+      github_username = var.github_username
+      github_pat      = var.github_pat
     })
   ]
 
