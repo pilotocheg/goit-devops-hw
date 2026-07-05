@@ -7,7 +7,6 @@ data "aws_caller_identity" "current" {}
 module "s3_backend" {
   source = "./modules/s3-backend"
   bucket_name = "terraform-demo-bucket-${data.aws_caller_identity.current.account_id}"
-  table_name = "terraform-demo-locks"
 }
 
 module "vpc" {
@@ -53,11 +52,26 @@ provider "helm" {
   }
 }
 
+provider "kubernetes" {
+  host                   = module.eks.eks_cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate_authority)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.eks_cluster_name, "--region", "eu-central-1"]
+  }
+}
+
 module "jenkins" {
-  source       = "./modules/jenkins"
-  cluster_name = module.eks.eks_cluster_name
+  source             = "./modules/jenkins"
+  cluster_name       = module.eks.eks_cluster_name
+  oidc_provider_arn  = module.eks.oidc_provider_arn
+  oidc_provider_url  = module.eks.oidc_provider_url
+  ecr_repository_arn = module.ecr.ecr_repository_arn
 
   providers = {
-    helm = helm
+    helm       = helm
+    kubernetes = kubernetes
   }
 }
