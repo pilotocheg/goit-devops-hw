@@ -11,6 +11,12 @@ service:
 ingress:
   enabled: false
 
+postgres:
+  enabled: true
+  image: postgres:16
+  # Service name must match POSTGRES_HOST in the config below so Django can resolve it.
+  serviceName: db
+
 hpa:
   enabled: true
   minReplicas: 2
