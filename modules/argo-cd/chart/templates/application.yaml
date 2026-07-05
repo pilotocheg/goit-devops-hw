@@ -1,0 +1,30 @@
+{{- range .Values.applications }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .project | default "default" }}
+  source:
+    repoURL: {{ .source.repoURL }}
+    path: {{ .source.path }}
+    targetRevision: {{ .source.targetRevision | default "HEAD" }}
+    {{- with .source.helm }}
+    helm:
+      valueFiles:
+        {{- range .valueFiles }}
+        - {{ . }}
+        {{- end }}
+    {{- end }}
+  destination:
+    server: {{ .destination.server }}
+    namespace: {{ .destination.namespace }}
+  {{- with .syncPolicy }}
+  syncPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}

@@ -77,7 +77,13 @@ module "jenkins" {
 }
 
 module "argo_cd" {
-  source       = "./modules/argo-cd"
-  namespace    = "argocd"
+  source        = "./modules/argo-cd"
+  namespace     = "argocd"
   chart_version = "5.46.4"
+
+  providers = {
+    helm = helm
+  }
+
+  depends_on = [module.eks]
 }
