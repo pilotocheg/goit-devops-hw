@@ -32,11 +32,18 @@ resource "aws_iam_role_policy_attachment" "ebs_irsa_policy" {
   role       = aws_iam_role.ebs_csi_irsa_role.name
 }
 
+# Отримуємо сумісну версію аддона для версії Kubernetes кластера
+data "aws_eks_addon_version" "ebs_csi_driver" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = aws_eks_cluster.eks.version
+  most_recent        = true
+}
+
 # EKS Addon з привʼязаною IRSA IAM роллю
 resource "aws_eks_addon" "ebs_csi_driver" {
   cluster_name                  = aws_eks_cluster.eks.name
   addon_name                    = "aws-ebs-csi-driver"
-  addon_version                 = "v1.41.0-eksbuild.1"
+  addon_version                 = data.aws_eks_addon_version.ebs_csi_driver.version
   service_account_role_arn      = aws_iam_role.ebs_csi_irsa_role.arn
   resolve_conflicts_on_update  = "PRESERVE"
 

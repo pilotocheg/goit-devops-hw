@@ -2,9 +2,11 @@ provider "aws" {
   region = "eu-central-1"
 }
 
+data "aws_caller_identity" "current" {}
+
 module "s3_backend" {
   source = "./modules/s3-backend"
-  bucket_name = "terraform-demo-bucket"
+  bucket_name = "terraform-demo-bucket-${data.aws_caller_identity.current.account_id}"
   table_name = "terraform-demo-locks"
 }
 
@@ -27,15 +29,11 @@ module "eks" {
   source          = "./modules/eks"
   region          = "eu-central-1"
   cluster_name    = "eks-cluster-demo"            # Назва кластера
-  subnet_ids      = module.vpc.private_subnets     # ID підмереж
-  instance_type   = "t3.micro"                    # Тип інстансів
-  desired_size    = 1                             # Бажана кількість нодів
-  max_size        = 2                             # Максимальна кількість нодів
+  subnet_ids      = module.vpc.public_subnets      # ID підмереж (public, щоб ноди мали вихід в інтернет через IGW)
+  instance_type   = "t3.small"                    # Тип інстансів (t3.micro дає лише 4 поди на ноду — замало для CSI + Jenkins)
+  desired_size    = 2                             # Бажана кількість нодів
+  max_size        = 3                             # Максимальна кількість нодів
   min_size        = 1                             # Мінімальна кількість нодів
-}
-
-data "aws_eks_cluster" "eks" {
-  name = module.eks.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "eks" {
@@ -44,9 +42,14 @@ data "aws_eks_cluster_auth" "eks" {
 
 provider "helm" {
   kubernetes {
-    host                   = data.aws_eks_cluster.eks.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.eks.token
+    host                   = module.eks.eks_cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate_authority)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.eks_cluster_name, "--region", "eu-central-1"]
+    }
   }
 }
 
