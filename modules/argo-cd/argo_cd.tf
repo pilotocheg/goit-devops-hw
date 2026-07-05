@@ -20,5 +20,11 @@ resource "helm_release" "argo_apps" {
   namespace        = var.namespace
   create_namespace = false
 
+  # Passing the values file explicitly makes Terraform track its content, so edits
+  # (e.g. changing targetRevision) are detected and trigger an update of the release.
+  values = [
+    file("${path.module}/chart/values.yaml")
+  ]
+
   depends_on = [helm_release.argo_cd]
 }
