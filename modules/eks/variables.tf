@@ -9,7 +9,12 @@ variable "cluster_name" {
 }
 
 variable "subnet_ids" {
-  description = "List of subnet IDs for the EKS cluster"
+  description = "Subnet IDs for the EKS control plane ENIs (public + private)"
+  type        = list(string)
+}
+
+variable "node_subnet_ids" {
+  description = "Subnet IDs for the worker nodes (private subnets, egress via NAT)"
   type        = list(string)
 }
 

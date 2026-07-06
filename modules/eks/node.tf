@@ -49,8 +49,8 @@ resource "aws_eks_node_group" "general" {
   # IAM-роль для вузлів
   node_role_arn = aws_iam_role.nodes.arn
 
-  # Підмережі, де будуть EC2-вузли
-  subnet_ids = var.subnet_ids
+  # Підмережі, де будуть EC2-вузли (приватні, вихід в інтернет через NAT gateway)
+  subnet_ids = var.node_subnet_ids
 
   # Тип EC2-інстансів для вузлів
   capacity_type  = "ON_DEMAND"

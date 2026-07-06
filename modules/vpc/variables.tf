@@ -22,3 +22,8 @@ variable "vpc_name" {
   description = "Name of the VPC"
   type = string
 }
+
+variable "cluster_name" {
+  description = "EKS cluster name, used to tag subnets for Kubernetes load balancer discovery"
+  type        = string
+}

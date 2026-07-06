@@ -16,6 +16,7 @@ module "vpc" {
   private_subnets     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
   availability_zones  = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
   vpc_name = "terraform-demo-vpc"
+  cluster_name = "eks-cluster-demo"   # для тегування підмереж під Kubernetes LoadBalancer
 }
 
 module "ecr" {
@@ -28,7 +29,9 @@ module "eks" {
   source          = "./modules/eks"
   region          = "eu-central-1"
   cluster_name    = "eks-cluster-demo"            # Назва кластера
-  subnet_ids      = module.vpc.public_subnets      # ID підмереж (public, щоб ноди мали вихід в інтернет через IGW)
+  # Control plane бачить усі підмережі; ноди живуть лише в приватних (вихід через NAT gateway).
+  subnet_ids      = concat(module.vpc.public_subnets, module.vpc.private_subnets)
+  node_subnet_ids = module.vpc.private_subnets
   instance_type   = "t3.small"                    # Тип інстансів (t3.micro дає лише 4 поди на ноду — замало для CSI + Jenkins)
   desired_size    = 3                             # Бажана кількість нодів
   max_size        = 3                             # Максимальна кількість нодів

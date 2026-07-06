@@ -1,3 +1,29 @@
+resource "kubernetes_namespace_v1" "jenkins" {
+  metadata {
+    name = "jenkins"
+  }
+}
+
+# Generate the Jenkins admin password instead of hardcoding it in values.yaml.
+resource "random_password" "jenkins_admin" {
+  length  = 16
+  special = true
+}
+
+resource "kubernetes_secret" "jenkins_admin" {
+  metadata {
+    name      = "jenkins-admin-secret"
+    namespace = kubernetes_namespace_v1.jenkins.metadata[0].name
+  }
+
+  data = {
+    "jenkins-admin-user"     = "admin"
+    "jenkins-admin-password" = random_password.jenkins_admin.result
+  }
+
+  type = "Opaque"
+}
+
 resource "kubernetes_storage_class_v1" "ebs_sc" {
   metadata {
     name = "ebs-sc"
@@ -70,11 +96,11 @@ resource "aws_iam_role_policy" "jenkins_ecr_policy" {
 
 resource "helm_release" "jenkins" {
   name             = "jenkins"
-  namespace        = "jenkins"
+  namespace        = kubernetes_namespace_v1.jenkins.metadata[0].name
   repository       = "https://charts.jenkins.io"
   chart            = "jenkins"
   version          = "5.9.32"
-  create_namespace = true
+  create_namespace = false
 
   # Jenkins тягне образи та чекає на PVC (EBS), тож даємо більше часу
   timeout         = 900
@@ -90,6 +116,7 @@ resource "helm_release" "jenkins" {
   ]
 
   depends_on = [
-    kubernetes_storage_class_v1.ebs_sc
+    kubernetes_storage_class_v1.ebs_sc,
+    kubernetes_secret.jenkins_admin
   ]
 }
