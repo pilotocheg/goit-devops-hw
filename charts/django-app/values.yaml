@@ -1,0 +1,32 @@
+image:
+  repository: 683210040028.dkr.ecr.eu-central-1.amazonaws.com/terraform-demo-ecr
+  tag: django-app-8
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: false
+
+postgres:
+  enabled: true
+  image: postgres:16
+  # Service name must match POSTGRES_HOST in the config below so Django can resolve it.
+  serviceName: db
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
+
+config:
+  POSTGRES_PORT: 5432
+  POSTGRES_HOST: db
+  POSTGRES_USER: django_user
+  POSTGRES_DB: django_db
+  POSTGRES_PASSWORD: pass9764gd

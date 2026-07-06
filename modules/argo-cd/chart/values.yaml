@@ -1,0 +1,19 @@
+applications:
+  - name: django-app
+    project: default
+    source:
+      repoURL: https://github.com/pilotocheg/goit-devops-hw.git
+      path: charts/django-app
+      targetRevision: main
+      helm:
+        valueFiles:
+          - values.yaml
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: default
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true

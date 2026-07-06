@@ -1,0 +1,29 @@
+variable "vpc_cidr_block" {
+  description = "CIDR block for the VPC"
+  type = string
+}
+
+variable "public_subnets" {
+  description = "List of public subnets"
+  type = list(string)
+}
+
+variable "private_subnets" {
+  description = "List of private subnets"
+  type = list(string)
+}
+
+variable "availability_zones" {
+  description = "List of availability zones"
+  type = list(string)
+}
+
+variable "vpc_name" {
+  description = "Name of the VPC"
+  type = string
+}
+
+variable "cluster_name" {
+  description = "EKS cluster name, used to tag subnets for Kubernetes load balancer discovery"
+  type        = string
+}
