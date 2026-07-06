@@ -1,6 +1,6 @@
 output "s3_bucket_name" {
   description = "S3 bucket for state storage"
-  value = module.s3_backend.s3_bucket_name
+  value       = module.s3_backend.s3_bucket_name
 }
 
 #-------------VPC-----------------
@@ -50,4 +50,22 @@ output "jenkins_release" {
 
 output "jenkins_namespace" {
   value = module.jenkins.jenkins_namespace
+}
+
+#-------------RDS-----------------
+
+output "rds_endpoint" {
+  description = "RDS/Aurora connection endpoint"
+  value       = module.rds.endpoint
+}
+
+output "rds_port" {
+  description = "RDS/Aurora port"
+  value       = module.rds.port
+}
+
+output "rds_password" {
+  description = "RDS master password (generated when not provided)"
+  value       = module.rds.password
+  sensitive   = true
 }
