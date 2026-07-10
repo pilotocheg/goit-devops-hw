@@ -19,14 +19,15 @@ Developer ──push──▶ app repo ──▶ Jenkins (Kaniko) ──build/pu
 
 ## Terraform Modules
 
-| Module        | Purpose |
-| ------------- | ------- |
-| `s3-backend`  | S3 bucket (with versioning) for Terraform state + DynamoDB table for state locking. |
-| `vpc`         | VPC, public/private subnets, Internet Gateway, route tables. |
-| `ecr`         | Amazon ECR repository for the Django image (`scan_on_push`). |
-| `eks`         | EKS cluster, managed node group, OIDC provider (IRSA), and the EBS CSI driver add-on. |
-| `jenkins`     | Jenkins via Helm + JCasC, a Kubernetes/Kaniko agent, and an IRSA role so Kaniko can push to ECR. |
-| `argo-cd`     | Argo CD via Helm plus a local chart that defines the Argo CD `Application` tracking the Helm chart in Git. |
+| Module       | Purpose                                                                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `s3-backend` | S3 bucket (with versioning) for Terraform state + DynamoDB table for state locking.                                                                                                                               |
+| `vpc`        | VPC, public/private subnets, Internet Gateway, route tables.                                                                                                                                                      |
+| `ecr`        | Amazon ECR repository for the Django image (`scan_on_push`).                                                                                                                                                      |
+| `eks`        | EKS cluster, managed node group, OIDC provider (IRSA), and the EBS CSI driver add-on.                                                                                                                             |
+| `jenkins`    | Jenkins via Helm + JCasC, a Kubernetes/Kaniko agent, and an IRSA role so Kaniko can push to ECR.                                                                                                                  |
+| `argo-cd`    | Argo CD via Helm plus a local chart that defines the Argo CD `Application` tracking the Helm chart in Git.                                                                                                        |
+| `rds`        | Universal database module: provisions **either** an Aurora cluster **or** a standard RDS instance (toggled by `use_aurora`), plus the DB subnet group, security group, and parameter group for the chosen engine. |
 
 ## Project Structure
 
@@ -45,11 +46,12 @@ Developer ──push──▶ app repo ──▶ Jenkins (Kaniko) ──build/pu
 │   ├── ecr/                   # ecr.tf, variables.tf, outputs.tf
 │   ├── eks/                   # eks.tf, node.tf, aws_ebs_csi_driver.tf, variables.tf, outputs.tf
 │   ├── jenkins/               # jenkins.tf, values.yaml (JCasC), variables.tf, providers.tf, outputs.tf
-│   └── argo-cd/               # argo_cd.tf, variables.tf, providers.tf, outputs.tf
-│       └── chart/             # local chart rendering the Argo CD Application
-│           ├── Chart.yaml
-│           ├── values.yaml
-│           └── templates/application.yaml
+│   ├── argo-cd/               # argo_cd.tf, variables.tf, providers.tf, outputs.tf
+│   │   └── chart/             # local chart rendering the Argo CD Application
+│   │       ├── Chart.yaml
+│   │       ├── values.yaml
+│   │       └── templates/application.yaml
+│   └── rds/                   # shared.tf, rds.tf, aurora.tf, variables.tf, outputs.tf, providers.tf
 │
 └── charts/
     └── django-app/            # Helm chart deployed by Argo CD
@@ -127,6 +129,7 @@ kubectl -n jenkins get secret jenkins \
 ```
 
 Jenkins is bootstrapped via JCasC with:
+
 - the `github-token` credential (from `var.github_pat`),
 - a seed job that generates the Django pipeline job,
 - a Kubernetes cloud that runs builds on dynamic Kaniko agent pods (SA `jenkins-sa`,
@@ -175,22 +178,163 @@ kubectl -n default get deploy django-app-django \
 
 ## Application Chart (`charts/django-app`)
 
-| Template          | Description |
-| ----------------- | ----------- |
-| `deployment.yaml` | Runs the Django container with env from the ConfigMap. |
-| `service.yaml`    | Exposes the app (LoadBalancer, port 80 → 8000). |
-| `configmap.yaml`  | PostgreSQL connection settings (`POSTGRES_*`). |
-| `hpa.yaml`        | Horizontal Pod Autoscaler (CPU/memory). |
+| Template          | Description                                                                      |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `deployment.yaml` | Runs the Django container with env from the ConfigMap.                           |
+| `service.yaml`    | Exposes the app (LoadBalancer, port 80 → 8000).                                  |
+| `configmap.yaml`  | PostgreSQL connection settings (`POSTGRES_*`).                                   |
+| `hpa.yaml`        | Horizontal Pod Autoscaler (CPU/memory).                                          |
 | `postgres.yaml`   | In-cluster PostgreSQL `Deployment` + a `db` `Service` (matches `POSTGRES_HOST`). |
 
 > The bundled PostgreSQL uses an `emptyDir` volume (ephemeral — data resets if the
 > pod is recreated), which is sufficient for a demo. Switch to a `PersistentVolumeClaim`
 > (the cluster has the EBS CSI driver) for durable storage.
 
+## Database (`modules/rds`)
+
+A single, reusable module that provisions **either** an Aurora cluster **or** a
+standard RDS instance based on `use_aurora`. For each mode it automatically creates
+the **DB subnet group**, **security group**, and the correct **parameter group**
+(`aws_db_parameter_group` for RDS, `aws_rds_cluster_parameter_group` for Aurora).
+
+### Usage example
+
+```hcl
+module "rds" {
+  source = "./modules/rds"
+
+  name       = "terraform-demo-db"
+  use_aurora = false # false -> standard RDS instance, true -> Aurora cluster
+
+  # --- Aurora-only (used when use_aurora = true) ---
+  engine_cluster                = "aurora-postgresql"
+  engine_version_cluster        = "15.3"
+  parameter_group_family_aurora = "aurora-postgresql15"
+  aurora_replica_count          = 1
+
+  # --- Standard RDS-only (used when use_aurora = false) ---
+  engine                     = "postgres"
+  engine_version             = "17.5"
+  parameter_group_family_rds = "postgres17"
+
+  # Common
+  instance_class          = "db.t3.micro"
+  allocated_storage       = 20
+  db_name                 = "terraform_demo"
+  username                = "postgres"
+  password                = var.rds_password # null -> auto-generated
+  subnet_private_ids      = module.vpc.private_subnets
+  subnet_public_ids       = module.vpc.public_subnets
+  publicly_accessible     = false
+  vpc_id                  = module.vpc.vpc_id
+  multi_az                = false
+  backup_retention_period = 7
+  skip_final_snapshot     = true
+
+  parameters = {
+    max_connections            = "200"
+    log_min_duration_statement = "500"
+  }
+
+  tags = {
+    Environment = "dev"
+    Project     = "terraform-demo"
+  }
+}
+```
+
+### Variables
+
+| Variable                        | Type               | Default                 | Description                                                                       |
+| ------------------------------- | ------------------ | ----------------------- | --------------------------------------------------------------------------------- |
+| `name`                          | string             | –                       | Base name for the instance/cluster and all supporting resources.                  |
+| `use_aurora`                    | bool               | `false`                 | `true` → Aurora cluster, `false` → single RDS instance.                           |
+| `engine`                        | string             | `"postgres"`            | Engine for the **standard RDS** instance (`postgres`, `mysql`, `mariadb`, …).     |
+| `engine_version`                | string             | `"17.5"`                | Engine version for the standard RDS instance (must exist in your region).          |
+| `parameter_group_family_rds`    | string             | `"postgres17"`          | Parameter group family for standard RDS (e.g. `postgres17`, `mysql8.0`).          |
+| `engine_cluster`                | string             | `"aurora-postgresql"`   | Engine for the **Aurora** cluster (`aurora-postgresql`, `aurora-mysql`).          |
+| `engine_version_cluster`        | string             | `"15.3"`                | Engine version for the Aurora cluster.                                            |
+| `parameter_group_family_aurora` | string             | `"aurora-postgresql15"` | Parameter group family for Aurora.                                                |
+| `aurora_replica_count`          | number             | `1`                     | Number of Aurora reader replicas (a writer is always created on top).             |
+| `instance_class`                | string             | `"db.t3.micro"`         | Instance class. `db.t3.micro` is Free Tier eligible (standard RDS only).          |
+| `allocated_storage`             | number             | `20`                    | Storage in GB (standard RDS only; Free Tier allows up to 20).                     |
+| `db_name`                       | string             | –                       | Name of the initial database.                                                     |
+| `username`                      | string             | –                       | Master username.                                                                  |
+| `password`                      | string (sensitive) | `null`                  | Master password. `null`/empty → auto-generated. Prefer `TF_VAR_rds_password`.     |
+| `vpc_id`                        | string             | –                       | VPC in which the security group is created.                                       |
+| `subnet_private_ids`            | list(string)       | –                       | Private subnets (subnet group when **not** publicly accessible).                  |
+| `subnet_public_ids`             | list(string)       | –                       | Public subnets (subnet group when publicly accessible).                           |
+| `publicly_accessible`           | bool               | `false`                 | Whether the DB gets a public endpoint. Keep `false` unless required.              |
+| `allowed_cidr_blocks`           | list(string)       | `["10.0.0.0/16"]`       | CIDRs allowed to reach the DB port. Restrict in production.                       |
+| `db_port`                       | number             | `null`                  | DB port. `null` → derived from engine (5432 Postgres, 3306 MySQL/MariaDB).        |
+| `multi_az`                      | bool               | `false`                 | Multi-AZ (standard RDS). **Not Free Tier eligible** — keep `false` for Free Tier. |
+| `backup_retention_period`       | number             | `7`                     | Days to retain automated backups.                                                 |
+| `skip_final_snapshot`           | bool               | `true`                  | Skip the final snapshot on destroy (convenient for demos/dev).                    |
+| `parameters`                    | map(string)        | `{}`                    | DB parameters applied to the parameter group.                                     |
+| `tags`                          | map(string)        | `{}`                    | Tags applied to all resources.                                                    |
+
+**Outputs:** `endpoint`, `reader_endpoint` (Aurora only), `port`, `db_name`,
+`username`, `password` (sensitive), `security_group_id`.
+
+### How to change DB type, engine, instance class, …
+
+- **Aurora vs standard RDS:** flip `use_aurora`. `true` builds an Aurora cluster
+  (writer + `aurora_replica_count` readers); `false` builds a single RDS instance.
+  Only the resources for the selected mode are created (the others use `count = 0`).
+- **Change the engine** (e.g. Postgres → MySQL):
+  - Standard RDS: set `engine = "mysql"`, `engine_version = "8.0.36"`,
+    `parameter_group_family_rds = "mysql8.0"`. The security group port switches to
+    3306 automatically (derived from the engine); override with `db_port` if needed.
+  - Aurora: set `engine_cluster = "aurora-mysql"`,
+    `engine_version_cluster = "8.0.mysql_aurora.3.05.2"`,
+    `parameter_group_family_aurora = "aurora-mysql8.0"`.
+- **Change the instance class:** set `instance_class` (e.g. `db.t3.medium`).
+  Keep `db.t3.micro` to stay in the Free Tier.
+- **Storage:** adjust `allocated_storage` (standard RDS; Aurora storage autoscales).
+- **Tune parameters:** add entries to the `parameters` map — they are applied to the
+  correct parameter group for the active engine.
+
+### AWS Free Tier notes
+
+The defaults are tuned for the RDS Free Tier:
+
+- `use_aurora = false` — **Aurora has no Free Tier**, so use standard RDS.
+- `instance_class = "db.t3.micro"`, `allocated_storage <= 20`.
+- `multi_az = false` — **Multi-AZ is not Free Tier eligible**.
+- `backup_retention_period = 0` — the newer **AWS Free Tier plan forbids automated
+  backups** (`FreeTierRestrictionError`). Set a value `> 0` on a paid plan.
+- `publicly_accessible = false` and `allowed_cidr_blocks` scoped to the VPC CIDR.
+
+### Password handling
+
+The RDS password is **not** hardcoded. Like the Jenkins admin password, it is
+generated with `random_password` inside the module when no value is supplied.
+To set an explicit password, export it as an environment variable (never commit it):
+
+```bash
+export TF_VAR_rds_password="your-strong-password"
+```
+
+Retrieve the (generated or provided) password and endpoint from outputs:
+
+```bash
+terraform output -raw rds_password
+terraform output -raw rds_endpoint
+```
+
+### Create only the database
+
+Provision just the RDS module (Terraform also creates its dependencies — the VPC —
+but skips EKS, ECR, Jenkins, and Argo CD):
+
+```bash
+terraform apply -target=module.rds
+```
+
 ## Teardown
 
 ```bash
-terraform destroy
+bash scripts/teardown.sh
 ```
 
 ## Security Notes

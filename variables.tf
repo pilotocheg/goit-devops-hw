@@ -9,3 +9,10 @@ variable "github_pat" {
   type        = string
   sensitive   = true
 }
+
+variable "rds_password" {
+  description = "Optional RDS master password. Leave null to auto-generate one in the module. To set explicitly, prefer the TF_VAR_rds_password env var over committing it."
+  type        = string
+  default     = null
+  sensitive   = true
+}
