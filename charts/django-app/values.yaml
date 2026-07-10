@@ -1,6 +1,6 @@
 image:
   repository: 683210040028.dkr.ecr.eu-central-1.amazonaws.com/terraform-demo-ecr
-  tag: django-app-8
+  tag: django-app-1
   pullPolicy: IfNotPresent
 
 service:
