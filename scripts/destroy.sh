@@ -61,11 +61,22 @@ else
 fi
 
 echo "==> [4/5] terraform destroy (all modules except the state backend)"
+
+# Phase 4a — destroy workloads and data layer first.
+# RDS must be fully deleted before VPC networking is torn down; otherwise
+# Terraform may destroy the NAT/IGW while the RDS DeleteDBInstance API call
+# is still in-flight, causing a DNS resolution failure on the local machine.
+echo "    [4a/4b] destroying workloads, RDS, ECR (keeping VPC up)..."
 terraform destroy -auto-approve \
   -target=module.argo_cd \
   -target=module.jenkins \
+  -target=module.rds \
   -target=module.eks \
-  -target=module.ecr \
+  -target=module.ecr
+
+# Phase 4b — VPC is safe to remove only after all resources inside it are gone.
+echo "    [4b/4b] destroying VPC..."
+terraform destroy -auto-approve \
   -target=module.vpc
 
 if [ "$DESTROY_STATE_BACKEND" = true ]; then
