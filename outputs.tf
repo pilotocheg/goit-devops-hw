@@ -69,3 +69,15 @@ output "rds_password" {
   value       = module.rds.password
   sensitive   = true
 }
+
+#-------------MONITORING-----------------
+
+output "monitoring_namespace" {
+  description = "Namespace where Prometheus & Grafana are deployed"
+  value       = module.monitoring.namespace
+}
+
+output "grafana_service_name" {
+  description = "Grafana Kubernetes Service name (LoadBalancer)"
+  value       = module.monitoring.grafana_service_name
+}

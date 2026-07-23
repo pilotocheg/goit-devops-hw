@@ -21,10 +21,29 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-config
-      resources:
-        requests:
-          cpu: "200m"
-          memory: "256Mi"
-        limits:
-          cpu: "500m"
-          memory: "512Mi"
+            {{- if .Values.rdsSecretName }}
+            - secretRef:
+                name: {{ .Values.rdsSecretName }}
+            {{- else }}
+            - secretRef:
+                name: {{ .Release.Name }}-secret
+            {{- end }}
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3

@@ -1,1 +1,2 @@
-github_pat = "example_pat"
+github_pat             = "example_pat"
+grafana_admin_password = "changeme"

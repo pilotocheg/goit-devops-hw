@@ -94,6 +94,35 @@ module "argo_cd" {
 }
 
 
+# Kubernetes Secret that makes the RDS endpoint and password available to the
+# Django Helm chart without storing sensitive values in Git.  The Secret name
+# matches the `rdsSecretName` value in charts/django-app/values.yaml.
+resource "kubernetes_secret" "django_rds" {
+  metadata {
+    name      = "django-app-rds"
+    namespace = "default"
+  }
+
+  data = {
+    POSTGRES_HOST     = module.rds.endpoint
+    POSTGRES_PASSWORD = module.rds.password
+  }
+
+  depends_on = [module.eks]
+}
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  grafana_admin_password = var.grafana_admin_password
+
+  providers = {
+    helm = helm
+  }
+
+  depends_on = [module.eks]
+}
+
 module "rds" {
   source = "./modules/rds"
 

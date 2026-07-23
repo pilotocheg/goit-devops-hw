@@ -12,9 +12,10 @@ ingress:
   enabled: false
 
 postgres:
-  enabled: true
+  # Set to true only for local/dev when no external RDS is available.
+  # In production the app connects to the AWS RDS instance (see rdsSecretName below).
+  enabled: false
   image: postgres:16
-  # Service name must match POSTGRES_HOST in the config below so Django can resolve it.
   serviceName: db
 
 hpa:
@@ -24,9 +25,19 @@ hpa:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
 
+# Non-sensitive configuration — rendered as a ConfigMap.
 config:
   POSTGRES_PORT: 5432
-  POSTGRES_HOST: db
+  POSTGRES_HOST: ""        # overridden at runtime by the Secret referenced in rdsSecretName
   POSTGRES_USER: django_user
   POSTGRES_DB: django_db
-  POSTGRES_PASSWORD: pass9764gd
+
+# Sensitive configuration — rendered as a Kubernetes Secret (only when rdsSecretName is empty).
+# In production these values come from the Terraform-managed Secret (see rdsSecretName).
+secrets:
+  POSTGRES_PASSWORD: "pass9764gd"
+
+# Name of the Terraform-managed Kubernetes Secret that contains the real RDS credentials
+# (POSTGRES_HOST and POSTGRES_PASSWORD).  When set, the chart-managed Secret is NOT created
+# and the deployment loads credentials directly from this pre-existing Secret.
+rdsSecretName: "django-app-rds"

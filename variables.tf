@@ -16,3 +16,9 @@ variable "rds_password" {
   default     = null
   sensitive   = true
 }
+
+variable "grafana_admin_password" {
+  description = "Grafana admin password for the monitoring stack. Provide via TF_VAR_grafana_admin_password env var or terraform.tfvars."
+  type        = string
+  sensitive   = true
+}

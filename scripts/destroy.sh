@@ -38,7 +38,7 @@ else
 fi
 
 if [ "$CLUSTER_UP" = true ]; then
-  echo "==> [2/5] Deleting LoadBalancer Services (removes AWS ELBs: Jenkins, Argo CD, django-app)"
+  echo "==> [2/5] Deleting LoadBalancer Services (removes AWS ELBs: Jenkins, Argo CD, Grafana, django-app)"
   kubectl get svc -A \
     -o go-template='{{range .items}}{{if eq .spec.type "LoadBalancer"}}{{.metadata.namespace}} {{.metadata.name}}{{"\n"}}{{end}}{{end}}' 2>/dev/null \
     | while read -r ns name; do
@@ -51,8 +51,11 @@ if [ "$CLUSTER_UP" = true ]; then
   # A PVC will NOT delete while a pod still mounts it (kubernetes.io/pvc-protection
   # finalizer), so scale the workloads down first, then request deletion WITHOUT
   # blocking. --wait=true here would hang forever if a pod is still attached.
-  kubectl -n jenkins scale statefulset --all --replicas=0 2>/dev/null || true
-  kubectl -n jenkins delete pvc --all --wait=false 2>/dev/null || true
+  kubectl -n jenkins    scale statefulset --all --replicas=0 2>/dev/null || true
+  kubectl -n jenkins    delete pvc --all --wait=false 2>/dev/null || true
+  # Prometheus keeps data on an EBS-backed PVC — scale it down before deleting.
+  kubectl -n monitoring scale statefulset --all --replicas=0 2>/dev/null || true
+  kubectl -n monitoring delete pvc --all --wait=false 2>/dev/null || true
 
   echo "    waiting ~60s for AWS to finish deleting the load balancers..."
   sleep 60
@@ -66,8 +69,12 @@ echo "==> [4/5] terraform destroy (all modules except the state backend)"
 # RDS must be fully deleted before VPC networking is torn down; otherwise
 # Terraform may destroy the NAT/IGW while the RDS DeleteDBInstance API call
 # is still in-flight, causing a DNS resolution failure on the local machine.
+# kubernetes_secret.django_rds must be removed before the EKS control plane
+# disappears (the K8s API is needed to delete the Secret).
 echo "    [4a/4b] destroying workloads, RDS, ECR (keeping VPC up)..."
 terraform destroy -auto-approve \
+  -target=kubernetes_secret.django_rds \
+  -target=module.monitoring \
   -target=module.argo_cd \
   -target=module.jenkins \
   -target=module.rds \
